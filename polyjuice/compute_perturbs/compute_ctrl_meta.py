@@ -2,7 +2,8 @@ from ..helpers import _normalize_span, unify_tags
 
 
 from spacy.tokens import Token, Span
-from pattern.en import wordnet, number, numerals
+from pattern3.text.en import number, numerals
+from nltk.corpus import wordnet
 import numpy as np
 import itertools
 
@@ -12,7 +13,22 @@ import itertools
 DEFAULT_NUM = 123456
 NOUN_VERIATIONS = ["NOUN", "PROPN", "PRON"]
 
+# Mapping so existing code using wordnet.NOUN, etc. won’t break
+wordnet.NOUN = wordnet.NOUN
+wordnet.VERB = wordnet.VERB
+wordnet.ADJECTIVE = wordnet.ADJ
+wordnet.ADVERB = wordnet.ADV
+
+
+# { Part-of-speech constants
+ADJ, ADJ_SAT, ADV, NOUN, VERB = "a", "s", "r", "n", "v"
+# }
+
+POS_LIST = [NOUN, VERB, ADJ, ADV]
+
 def all_synsets(word, pos=None):
+
+
     map = {
         'NOUN': wordnet.NOUN,
         'VERB': wordnet.VERB,
@@ -21,6 +37,7 @@ def all_synsets(word, pos=None):
         }
     if pos is None:
         pos_list = [wordnet.VERB, wordnet.ADJECTIVE, wordnet.NOUN, wordnet.ADVERB]
+        # pos_list = POS_LIST
     else:
         pos_list = [map[pos]]
     ret = []
@@ -30,33 +47,82 @@ def all_synsets(word, pos=None):
 
 def clean_senses(synsets):
     return [x for x in set(synsets) if '_' not in x]
+
 def all_possible_synonyms(word, pos=None):
+    """
+    Return a list of synonym words for `word`, optionally filtered by part-of-speech.
+    """
     ret = []
     for syn in all_synsets(word, pos=pos):
-        # if syn.synonyms[0] != word:
-        #     continue
-        ret.extend(syn.senses)
+        ret.extend([lemma.name() for lemma in syn.lemmas()])
     return clean_senses(ret)
+
+# def all_possible_synonyms(word, pos=None):
+#     ret = []
+#     for syn in all_synsets(word, pos=pos):
+#         # if syn.synonyms[0] != word:
+#         #     continue
+#         ret.extend(syn.senses)
+#     return clean_senses(ret)
+
 
 def all_possible_antonyms(word, pos=None):
+    """
+    Return a list of antonym words for `word`, optionally filtered by part-of-speech.
+    """
     ret = []
     for syn in all_synsets(word, pos=pos):
-        if not syn.antonym:
-            continue
-        for s in syn.antonym:
-            ret.extend(s.senses)
+        for lemma in syn.lemmas():
+            for ant in lemma.antonyms():
+                ret.append(ant.name())
     return clean_senses(ret)
 
-def all_possible_hypernyms(word, pos=None, depth=None):
-    ret = []
+# def all_possible_antonyms(word, pos=None):
+#     ret = []
+#     for syn in all_synsets(word, pos=pos):
+#         if not syn.antonym:
+#             continue
+#         for s in syn.antonym:
+#             ret.extend(s.senses)
+#     return clean_senses(ret)
+
+def all_possible_hypernyms(word, pos=None, depth=1):
+    ret = set()
     for syn in all_synsets(word, pos=pos):
-        ret.extend([y for x in syn.hypernyms(recursive=True, depth=depth) for y in x.senses])
+        current_level = [syn]
+        for _ in range(depth):
+            next_level = []
+            for s in current_level:
+                next_level.extend(s.hypernyms())
+            current_level = next_level
+            ret.update([lemma.name() for s in current_level for lemma in s.lemmas()])
     return clean_senses(ret)
-def all_possible_hyponyms(word, pos=None, depth=None):
-    ret = []
+
+def all_possible_hyponyms(word, pos=None, depth=1):
+    ret = set()
     for syn in all_synsets(word, pos=pos):
-        ret.extend([y for x in syn.hyponyms(recursive=True, depth=depth) for y in x.senses])
+        current_level = [syn]
+        for _ in range(depth):
+            next_level = []
+            for s in current_level:
+                next_level.extend(s.hyponyms())
+            current_level = next_level
+            ret.update([lemma.name() for s in current_level for lemma in s.lemmas()])
     return clean_senses(ret)
+
+
+# def all_possible_hypernyms(word, pos=None, depth=None):
+#     ret = []
+#     for syn in all_synsets(word, pos=pos):
+#         ret.extend([y for x in syn.hypernyms(recursive=True, depth=depth) for y in x.senses])
+#     return clean_senses(ret)
+# def all_possible_hyponyms(word, pos=None, depth=None):
+#     ret = []
+#     for syn in all_synsets(word, pos=pos):
+#         ret.extend([y for x in syn.hyponyms(recursive=True, depth=depth) for y in x.senses])
+#     return clean_senses(ret)
+
+
 def all_possible_related(words, pos=None, depth=1):
     all_syns = [y for word in words for y in all_synsets(word, pos=pos)]
     # all_syns = [all_synsets(x, pos=pos) for x in words]

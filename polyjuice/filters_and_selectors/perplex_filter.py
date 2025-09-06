@@ -52,7 +52,7 @@ def _tokens_log_prob_for_batch(texts, model, tokenizer, is_cuda=True):
 
 def load_perplex_scorer(model_id = 'gpt2', is_cuda=True):
     model = GPT2LMHeadModel.from_pretrained(model_id)
-    tokenizer = GPT2TokenizerFast.from_pretrained(model_id, use_fast=True, add_special_tokens=False)
+    tokenizer = GPT2TokenizerFast.from_pretrained(model_id, use_fast=True)
     device = "cuda" if is_cuda else "cpu"
     tokenizer.add_special_tokens({"additional_special_tokens": ["<|pad|>"]})
     tokenizer.pad_token = "<|pad|>"
